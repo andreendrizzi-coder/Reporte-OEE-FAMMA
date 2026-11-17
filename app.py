@@ -7,6 +7,7 @@ import matplotlib.gridspec as gridspec
 from matplotlib.patches import Rectangle
 from matplotlib.backends.backend_pdf import PdfPages
 import io
+import zipfile
 import warnings
 
 warnings.filterwarnings('ignore')
@@ -303,32 +304,28 @@ with col2:
 
 st.write("---")
 
-col_btn1, col_btn2 = st.columns(2)
-
-with col_btn1:
-    if st.button("Generar Reporte ESTAMPADO", use_container_width=True):
-        with st.spinner('Extrayendo datos y calculando métricas de Estampado...'):
-            pdf_bytes = generar_reporte_area(año_sel, mes_sel, "ESTAMPADO", "EST", GRUPOS_ESTAMPADO, '#0F4C81')
-            if pdf_bytes:
-                st.success("✅ Reporte de Estampado generado.")
-                st.download_button(
-                    label="📥 Descargar PDF Estampado",
-                    data=pdf_bytes,
-                    file_name=f"FAMMA_OEE_ESTAMPADO_{año_sel}_{mes_sel}.pdf",
-                    mime="application/pdf",
-                    use_container_width=True
-                )
-
-with col_btn2:
-    if st.button("Generar Reporte SOLDADURA", use_container_width=True):
-        with st.spinner('Extrayendo datos y calculando métricas de Soldadura...'):
-            pdf_bytes = generar_reporte_area(año_sel, mes_sel, "SOLDADURA", "SOL", GRUPOS_SOLDADURA, '#D35400')
-            if pdf_bytes:
-                st.success("✅ Reporte de Soldadura generado.")
-                st.download_button(
-                    label="📥 Descargar PDF Soldadura",
-                    data=pdf_bytes,
-                    file_name=f"FAMMA_OEE_SOLDADURA_{año_sel}_{mes_sel}.pdf",
-                    mime="application/pdf",
-                    use_container_width=True
-                )
+if st.button("Generar Reportes (Ambas Plantas)", use_container_width=True):
+    with st.spinner('Conectando a BD y generando reportes de Estampado y Soldadura...'):
+        pdf_est = generar_reporte_area(año_sel, mes_sel, "ESTAMPADO", "EST", GRUPOS_ESTAMPADO, '#0F4C81')
+        pdf_sol = generar_reporte_area(año_sel, mes_sel, "SOLDADURA", "SOL", GRUPOS_SOLDADURA, '#D35400')
+        
+        if pdf_est and pdf_sol:
+            # Crear un archivo ZIP en memoria
+            zip_buffer = io.BytesIO()
+            with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zip_file:
+                # Escribimos los dos PDFs en el ZIP
+                zip_file.writestr(f"FAMMA_OEE_ESTAMPADO_{año_sel}_{mes_sel}.pdf", pdf_est.getvalue())
+                zip_file.writestr(f"FAMMA_OEE_SOLDADURA_{año_sel}_{mes_sel}.pdf", pdf_sol.getvalue())
+            
+            st.success("✅ ¡Reportes generados con éxito!")
+            
+            # Botón único para descargar el ZIP
+            st.download_button(
+                label="📥 Descargar Ambos Reportes (.zip)",
+                data=zip_buffer.getvalue(),
+                file_name=f"FAMMA_Reportes_OEE_{año_sel}_{mes_sel}.zip",
+                mime="application/zip",
+                use_container_width=True
+            )
+        else:
+            st.error("Hubo un error al generar uno o ambos reportes. Revisá la conexión.")
