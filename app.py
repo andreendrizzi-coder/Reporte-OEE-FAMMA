@@ -311,7 +311,7 @@ with col2:
 st.write("---")
 
 # Botón generador único
-if st.button("🚀 Generar Reportes (Ambas Plantas)", use_container_width=True):
+if st.button("🚀 Generar Reportes ", use_container_width=True):
     # Si tocan el botón, limpiamos los PDFs anteriores por precaución
     st.session_state.pdf_est_bytes = None
     st.session_state.pdf_sol_bytes = None
