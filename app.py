@@ -7,7 +7,6 @@ import matplotlib.gridspec as gridspec
 from matplotlib.patches import Rectangle
 from matplotlib.backends.backend_pdf import PdfPages
 import io
-import zipfile
 import warnings
 
 warnings.filterwarnings('ignore')
@@ -18,6 +17,14 @@ warnings.filterwarnings('ignore')
 st.set_page_config(page_title="Reportes OEE FAMMA", layout="wide")
 st.title("📊 Generador de Reportes OEE - FAMMA")
 st.markdown("Seleccione el período para consultar la base de datos y generar los reportes PDF consolidados.")
+
+# Inicializar variables de estado en memoria para guardar los PDFs generados
+if 'pdf_est_bytes' not in st.session_state:
+    st.session_state.pdf_est_bytes = None
+if 'pdf_sol_bytes' not in st.session_state:
+    st.session_state.pdf_sol_bytes = None
+if 'reportes_generados' not in st.session_state:
+    st.session_state.reportes_generados = False
 
 # ==============================================================================
 # 0. MAPEOS Y CONSTANTES
@@ -139,7 +146,6 @@ def generar_reporte_area(año_filtro, mes_filtro, area, db_key, grupos_area, col
     if not df_m03.empty: lineas_activas.update([g for g in grupos_area if g in df_m03['Grupo'].unique()])
     paginas = ['GENERAL'] + list(lineas_activas)
 
-    # Búfer en memoria para Streamlit
     pdf_buffer = io.BytesIO()
 
     with PdfPages(pdf_buffer) as pdf:
@@ -304,28 +310,44 @@ with col2:
 
 st.write("---")
 
-if st.button("Generar Reportes (Ambas Plantas)", use_container_width=True):
-    with st.spinner('Conectando a BD y generando reportes de Estampado y Soldadura...'):
+# Botón generador único
+if st.button("🚀 Generar Reportes (Ambas Plantas)", use_container_width=True):
+    # Si tocan el botón, limpiamos los PDFs anteriores por precaución
+    st.session_state.pdf_est_bytes = None
+    st.session_state.pdf_sol_bytes = None
+    st.session_state.reportes_generados = False
+    
+    with st.spinner('Conectando a BD y calculando métricas para Estampado y Soldadura...'):
         pdf_est = generar_reporte_area(año_sel, mes_sel, "ESTAMPADO", "EST", GRUPOS_ESTAMPADO, '#0F4C81')
         pdf_sol = generar_reporte_area(año_sel, mes_sel, "SOLDADURA", "SOL", GRUPOS_SOLDADURA, '#D35400')
         
         if pdf_est and pdf_sol:
-            # Crear un archivo ZIP en memoria
-            zip_buffer = io.BytesIO()
-            with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zip_file:
-                # Escribimos los dos PDFs en el ZIP
-                zip_file.writestr(f"FAMMA_OEE_ESTAMPADO_{año_sel}_{mes_sel}.pdf", pdf_est.getvalue())
-                zip_file.writestr(f"FAMMA_OEE_SOLDADURA_{año_sel}_{mes_sel}.pdf", pdf_sol.getvalue())
-            
-            st.success("✅ ¡Reportes generados con éxito!")
-            
-            # Botón único para descargar el ZIP
-            st.download_button(
-                label="📥 Descargar Ambos Reportes (.zip)",
-                data=zip_buffer.getvalue(),
-                file_name=f"FAMMA_Reportes_OEE_{año_sel}_{mes_sel}.zip",
-                mime="application/zip",
-                use_container_width=True
-            )
+            # Guardamos los bytes resultantes en la memoria de la sesión
+            st.session_state.pdf_est_bytes = pdf_est.getvalue()
+            st.session_state.pdf_sol_bytes = pdf_sol.getvalue()
+            st.session_state.reportes_generados = True
+            st.success("✅ ¡Reportes generados con éxito! Elegí cuál descargar:")
         else:
-            st.error("Hubo un error al generar uno o ambos reportes. Revisá la conexión.")
+            st.error("❌ Hubo un error al generar uno o ambos reportes. Revisá la conexión.")
+
+# Si ya se generaron los reportes y están en memoria, mostramos los botones de descarga
+if st.session_state.reportes_generados:
+    col_dl1, col_dl2 = st.columns(2)
+    
+    with col_dl1:
+        st.download_button(
+            label="📥 Descargar PDF Estampado",
+            data=st.session_state.pdf_est_bytes,
+            file_name=f"FAMMA_OEE_ESTAMPADO_{año_sel}_{mes_sel}.pdf",
+            mime="application/pdf",
+            use_container_width=True
+        )
+        
+    with col_dl2:
+        st.download_button(
+            label="📥 Descargar PDF Soldadura",
+            data=st.session_state.pdf_sol_bytes,
+            file_name=f"FAMMA_OEE_SOLDADURA_{año_sel}_{mes_sel}.pdf",
+            mime="application/pdf",
+            use_container_width=True
+        )
